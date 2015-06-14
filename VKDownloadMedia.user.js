@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name        VKDownloadMedia
-// @namespace   http://vk-download-music.net/
+// @namespace   https://github.com/KJ86/VKDownloadMedia
 // @version     4.1
-// @date        2015-06-10
+// @date        2015-06-14
 // @author      KJ86
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
-// @homepage    http://vk-download-music.net/
-// @downloadURL https://raw.githubusercontent.com/KJ86/VKDownloadMedia/master/VKDownloadMedia.user.js
+// @homepage    https://github.com/KJ86/VKDownloadMedia
+// @downloadURL https://github.com/KJ86/VKDownloadMedia/raw/master/VKDownloadMedia.user.js
 // @include     *vk*
 // @run-at      document-end
 // @grant       none
@@ -306,7 +306,7 @@
             innerHTML: '\
 <div id="VKDM_InfoBox_ico" onclick="toggle(ge(\'VKDM_InfoBox_content\')); toggleClass(this, \'VKDM_InfoBox_ico_active\');"></div>\
 <div id="VKDM_InfoBox_content" class="fl_l">\
-  <div id="VKDM_InfoBox_content_title"><a href="http://vk-download-music.net" target="_blank">VKDownloadMedia 4.1</a></div>\
+  <div id="VKDM_InfoBox_content_title"><a href="https://github.com/KJ86/VKDownloadMedia" target="_blank">VKDownloadMedia 4.1</a></div>\
   <div id="VKDM_InfoBox_content_body">\
     <h2>Найдено</h2>\
     <div>\
