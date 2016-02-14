@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        VKDownloadMedia
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     4.1
+// @version     4.2
 // @date        2015-06-14
 // @author      KJ86
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
@@ -35,7 +35,9 @@
     /**
      * VKDM
      */
-    w.VKDM = {};
+    w.VKDM = {
+        version: 4.2
+    };
 
     VKDM.audioURLList = [];
     VKDM.photoURLList = [];
@@ -283,7 +285,8 @@
 .audio.over .audio_download {visibility: visible;}\
 .audio.over .duration {display: none !important}\
 #audio.new .audio_download_wrap {margin: 6px 6px 6px 0; padding: 4px; opacity: 0.4; filter: alpha(opacity=40);}\
-#audio.new .audio.over .title_wrap {width: 300px !important}\
+#audio.new .audio.over .title_wrap {width: 278px !important}\
+#pad_playlist_panel .audio.over .title_wrap {width: 308px !important}\
 #audio.new .audio.current .audio_download, #pad_playlist_panel .audio.current .audio_download {background-image: url("data:image/gif;base64,R0lGODlhDQANAIABAP///////yH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=");}\
 #pad_playlist_panel .audio_download_wrap {margin: 7px 7px 7px 0px; padding: 4px;}\
 #VKDM_InfoBox {line-height: 1; position: fixed; right: 10px; top: 85px; z-index: 201;}\
@@ -306,7 +309,7 @@
             innerHTML: '\
 <div id="VKDM_InfoBox_ico" onclick="toggle(ge(\'VKDM_InfoBox_content\')); toggleClass(this, \'VKDM_InfoBox_ico_active\');"></div>\
 <div id="VKDM_InfoBox_content" class="fl_l">\
-  <div id="VKDM_InfoBox_content_title"><a href="https://github.com/KJ86/VKDownloadMedia" target="_blank">VKDownloadMedia 4.1</a></div>\
+  <div id="VKDM_InfoBox_content_title"><a href="https://github.com/KJ86/VKDownloadMedia" target="_blank">VKDownloadMedia ' + VKDM.version + '</a></div>\
   <div id="VKDM_InfoBox_content_body">\
     <h2>Найдено</h2>\
     <div>\
@@ -369,7 +372,7 @@
 
         adw.setAttribute('onclick', "var audio = ge(this.id.replace('download','audio')); VKDM.downloadFile(geByTag1('input', audio).value, trim(geByClass1('title_wrap', audio).textContent) + '.mp3'); return cancelEvent(event);");
 
-        (function refresh() {
+        var refresh = function () {
             var audio = geByClass('audio');
             var audioLength = audio.length;
             var photoLength = ge('content').querySelectorAll('[onclick*="showPhoto("]').length;
@@ -443,7 +446,9 @@
                 }
             }
 
-            setTimeout(refresh, 300);
-        })();
+            setTimeout(refresh, Math.ceil(rand(200, 600)));
+        };
+
+        refresh();
     })();
 })(window, document);
