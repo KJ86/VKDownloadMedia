@@ -7,7 +7,8 @@
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @homepage    https://github.com/KJ86/VKDownloadMedia
 // @downloadURL https://github.com/KJ86/VKDownloadMedia/raw/master/VKDownloadMedia.user.js
-// @include     *vk*
+// @include     https://*.vk-cdn.net/*
+// @include     https://vk.com/*
 // @run-at      document-end
 // @grant       none
 // ==/UserScript==
