@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name        VKDownloadMedia
-// @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     5.0
-// @date        2016-08-28
-// @author      KJ86
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
+// @namespace   https://github.com/KJ86/VKDownloadMedia
+// @version     5.1
+// @date        2016-11-06
+// @author      KJ86
 // @homepage    https://github.com/KJ86/VKDownloadMedia
 // @downloadURL https://github.com/KJ86/VKDownloadMedia/raw/master/VKDownloadMedia.user.js
 // @include     *vk*
@@ -17,8 +17,7 @@
 
     // ifarme handler
     if (window.self !== window.top) {
-        var regexp = /vkdm=(.*)/i;
-        var param = regexp.exec(location.hash);
+        var param = location.hash.match(/vkdm=(.*)/i);
 
         if (param !== null) {
             param = JSON.parse(decodeURIComponent(param[1]));
@@ -42,7 +41,7 @@
                 a.download = param.fileName + '.' + fileExtension;
 
                 document.body.appendChild(a).click();
-                window.parent.postMessage('VKDM:' + JSON.stringify(param), '*');
+                window.top.postMessage('VKDM:' + JSON.stringify(param), '*');
             } else if (typeof param.fileSize !== 'undefined') { // Get file size
                 var xhr = new XMLHttpRequest();
 
@@ -50,7 +49,7 @@
                 xhr.onload = function () {
                     param.fileSize = xhr.getResponseHeader('content-length');
 
-                    window.parent.postMessage('VKDM:' + JSON.stringify(param), '*');
+                    window.top.postMessage('VKDM:' + JSON.stringify(param), '*');
                 };
                 xhr.send();
             }
@@ -63,9 +62,10 @@
 
     // Add download button
     (function () {
+        var isDwnlPlBtnAdd = false;
         var dwAudioBtn = ce('div', {
             className: 'audio_act',
-            id: 'vkdm_download_',
+            id: '',
             innerHTML: '<div></div>'
         });
 
@@ -74,14 +74,14 @@
 
         setInterval(function () {
             // Audio
-            var audioRows = domQuery('.audio_row:not(.candownload)');
+            var audioRows = domQuery('.audio_row:not(.candownload):not(.claimed)');
 
             if (audioRows.length) {
                 each(audioRows, function (i, audioRow) {
                     var audioActs = audioRow.querySelector('.audio_acts');
                     var clone = dwAudioBtn.cloneNode(true);
 
-                    clone.id += (Math.random().toString(36).replace('.', ''));
+                    clone.id = getRandomID('download');
                     clone.setAttribute('data-full-id', audioRow.getAttribute('data-full-id'));
                     audioActs.insertBefore(clone, audioActs.firstElementChild);
                     audioRow.classList.add('candownload');
@@ -90,41 +90,48 @@
 
             // Video
             if (ge('video_player') && !ge('mv_download')) {
-                var videoData = mvcur && mvcur.player && mvcur.player.vars;
+                if (typeof mvcur !== 'undefined' && mvcur.player && mvcur.player.getVars) {
+                    var videoData = mvcur.player.getVars();
 
-                if (videoData) {
-                    var prop, match, items = [];
+                    if (videoData) {
+                        var prop, match, items = [];
 
-                    for (prop in videoData) {
-                        match = prop.match(/url(\d+)/);
+                        for (prop in videoData) {
+                            match = prop.match(/url(\d+)/);
 
-                        if (match) {
-                            items.push([prop, match[1], videoData[prop]]);
+                            if (match) {
+                                if (parseInt(match[1], 10) >= 720) {
+                                    match[1] += ' <span style="font-size:smaller;color:#939393;">HD</span>';
+                                }
+
+                                items.push([prop, match[1], videoData[prop]]);
+                            }
+                        }
+
+                        if (items.length) {
+                            domInsertBefore(ce('div', {
+                                className: 'mv_more fl_l',
+                                id: 'mv_download',
+                                innerHTML: 'Скачать'
+                            }), ge('mv_more'));
+
+                            new InlineDropdown('mv_download', {
+                                items: items.reverse(),
+                                withArrow: true,
+                                keepTitle: true,
+                                autoShow: true,
+                                autoHide: 300,
+                                headerLeft: -17,
+                                headerTop: -11,
+                                sublists: {},
+                                onSelect: function (id, data) {
+                                    VKDM.downloadVideo(data[2], ge('mv_title').textContent);
+                                }
+                            });
                         }
                     }
-
-                    if (items.length) {
-                        domInsertBefore(ce('div', {
-                            className: 'mv_more fl_l',
-                            id: 'mv_download',
-                            innerHTML: 'Скачать'
-                        }), ge('mv_more'));
-
-                        new InlineDropdown('mv_download', {
-                            items: items.reverse(),
-                            withArrow: true,
-                            keepTitle: true,
-                            autoShow: true,
-                            autoHide: 300,
-                            headerLeft: -17,
-                            headerTop: -11,
-                            sublists: {},
-                            onSelect: function (id, data) {
-                                VKDM.downloadVideo(data[2], ge('mv_title').textContent);
-                            }
-                        });
-                    }
                 }
+
             }
 
             // Photo
@@ -133,15 +140,38 @@
             if (photosAlbumInfo && !ge('vkdm_download_album')) {
                 photosAlbumInfo.parentNode.appendChild(cf('<span class="divide">|</span><span class="photos_album_info"><a id="vkdm_download_album" onclick="VKDM.downloadPhotoAlbumsList(); return false;">Скачать альбом</a></span>'));
             }
+
+            // Play List
+            if (isDwnlPlBtnAdd === false) {
+                if (ap.layer && ap.layer._ttel) {
+                    var dwnlPlBtn = ce('div', {
+                        className: 'audio_download_current_btn audio_menu_btn'
+                    });
+
+                    dwnlPlBtn.setAttribute('onmouseover', "showTooltip(this, {text: 'Скачать', appendParentCls: '_audio_layer', black: 1, shift: [13, 9, 0]})");
+                    dwnlPlBtn.setAttribute('onclick', 'VKDM.downloadCurrentAudioPlayList(); return false;');
+
+                    domInsertAfter(dwnlPlBtn, geByClass1('audio_delete_current_btn', ap.layer._ttel));
+
+                    if (dwnlPlBtn.parentNode) {
+                        isDwnlPlBtnAdd = true;
+                    }
+                }
+            }
         }, 300);
     })();
 
     // Add CSS rules
     document.head.appendChild(ce('style', {
         type: 'text/css',
-        textContent: '\
-        .audio_row .audio_acts .audio_act[id^="vkdm_download_"] {display: block}\
-        .audio_row .audio_acts .audio_act[id^="vkdm_download_"] > div {background-image: url("data:image/gif;base64,R0lGODlhDQANAIABAHKTtgAAACH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=")}'
+        textContent: ''
+        + '.audio_row .audio_acts .audio_act[id^="vkdm_download_"]'
+        + '{display: block}'
+        + '.audio_row .audio_acts .audio_act[id^="vkdm_download_"] > div,'
+        + '.audio_menu_btn.audio_download_current_btn'
+        + '{background-image: url("data:image/gif;base64,R0lGODlhDQANAIABAHKTtgAAACH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=")}'
+        + '.audio_menu_btn.audio_download_current_btn'
+        + '{height: 13px; width: 13px;}'
     }));
 
     // Remove temp iframe
@@ -151,7 +181,7 @@
             var iframeID = data.iframeID;
 
             if (data.fileSize) {
-                var ttElement = document.querySelector('#' + data.ttElementID);
+                var ttElement = ge(data.ttElementID);
 
                 ttElement.classList.remove('vkdm_ajax_in_process');
                 ttElement.setAttribute('data-file-size', data.fileSize);
@@ -161,9 +191,7 @@
             }
 
             setTimeout(function () {
-                var iframe = document.querySelector('#' + iframeID);
-
-                iframe.parentNode.removeChild(iframe);
+                re(iframeID);
             }, 1000);
         }
     }, false);
@@ -217,18 +245,9 @@
                 ids: btn.getAttribute('data-full-id')
             }, {
                 onDone: function (items) {
-                    var url = items[0][2];
-                    var fileName = function () {
-                        var div = document.createElement('div');
-
-                        div.innerHTML = items[0][4] + ' &ndash; ' + items[0][3];
-
-                        return div.textContent;
-                    }();
-
                     createIframeTransport({
-                        url: url,
-                        fileName: fileName
+                        url: items[0][2],
+                        fileName: ce('div', {innerHTML: items[0][4] + ' &ndash; ' + items[0][3]}).textContent
                     });
                 }
             });
@@ -243,7 +262,9 @@
 
         downloadPhotoAlbumsList: function (el) {
             var items = [];
-            var downloadListBtnWrapID = 'vkdm_' + (Math.random().toString(36).replace('.', ''));
+            var isFastBoxClosed = false;
+            var downloadListBtnWrapID = getRandomID();
+            var fileName = document.title.replace(/"/g, '');
             var match = location.pathname.match(/album(-?[0-9]+)_([0-9]+)/);
             var ownerId = match[1];
             var albumId = match[2];
@@ -257,10 +278,10 @@
             }
 
             var onDone = function () {
-                var i, prop, match, nSizes;
+                var i, l, prop, match, nSizes;
                 var srcArr = [];
 
-                for (i = 0; i < items.length; i++) {
+                for (i = 0, l = items.length; i < l; i++) {
                     nSizes = [];
 
                     for (prop in items[i]) {
@@ -282,17 +303,17 @@
                     var url = createFile('text/plain;charset=utf-8', srcArr.join('\r\n'));
 
                     if (url) {
-                        var fileName = document.title.replace(/"/g, '');
-
-                        downloadListBtnWrap.innerHTML = '\
-                            <a href="' + url + '" class="flat_button secondary" download="' + fileName + '.txt">.txt</a>&nbsp;\
-                            <a href="' + url + '" class="flat_button secondary" download="' + fileName + '.urls">.urls</a>';
+                        downloadListBtnWrap.innerHTML = ''
+                        + '<a href="' + url + '" class="flat_button secondary" download="' + fileName + '.txt">.txt</a>&nbsp;'
+                        + '<a href="' + url + '" class="flat_button secondary" download="' + fileName + '.urls">.urls</a>';
                     } else {
                         downloadListBtnWrap.textContent = 'Не удалось создать файл.';
                     }
                 }
             };
             var getAllItems = function () {
+                if (isFastBoxClosed === true) return;
+
                 getJSONP('https://api.vk.com/method/photos.get?owner_id=' + ownerId + '&album_id=' + albumId + '&count=' + count + '&offset=' + offset + '&v=5.53', function (data) {
                     items = items.concat(data.items);
 
@@ -305,13 +326,134 @@
                 });
             };
 
-            showFastBox({title: 'VKDM - Скачать альбом', dark: 1, hideButtons: 1}, '\
-                <div style="text-align: center;">\
-                    <div style="color: #777;margin-bottom: 20px">Скачать список всех фотографий с альбома:</div>\
-                    <div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>\
-                </div>\
-            ');
+            showFastBox({
+                title: 'VKDM - Скачать альбом',
+                dark: 1,
+                hideButtons: 1,
+                onBeforeHide: function () {
+                    isFastBoxClosed = true;
+
+                    each(geByClass('flat_button', ge(downloadListBtnWrapID), 'a'), function (i, el) {
+                        window.URL.revokeObjectURL(el.href);
+                    });
+                }
+            }, ''
+            + '<div style="text-align: center;">'
+            + '<div style="color: #777;margin-bottom: 20px">'
+            + 'Скачать список всех фотографий с альбома:'
+            + '<br><b>' + fileName + '</b>'
+            + '<br><i>(может занят продолжительное время)</i>'
+            + '</div>'
+            + '<div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>'
+            + '</div>');
             getAllItems();
+        },
+
+        downloadCurrentAudioPlayList: function () {
+            var dataArr = [];
+            var audioIdsArr = [];
+            var isFastBoxClosed = false;
+            var downloadListBtnWrapID = getRandomID();
+            var playListTitle = '';
+            var getAudioLinks = function (ids) {
+                if (isFastBoxClosed === true) return;
+
+                ajax.post('al_audio.php', {
+                    act: 'reload_audio',
+                    ids: ids.join(',')
+                }, {
+                    onDone: function (items) {
+                        if (items === '') {
+                            setTimeout(function () {
+                                getAudioLinks(ids);
+                            }, 10000);
+
+                            return;
+                        }
+
+                        each(items, function(i, el) {
+                            dataArr.push({
+                                url: el[2],
+                                name: el[4] + ' – ' + el[3],
+                                duration: el[5]
+                            });
+                        });
+
+                        if (audioIdsArr.length) {
+                            getAudioLinks(audioIdsArr.splice(0, 10));
+                        } else {
+                            var textFileData = [];
+                            var m3uFileData = ['#EXTM3U'];
+
+                            each(dataArr, function(i, el) {
+                                textFileData.push(el.url);
+                                m3uFileData.push('#EXTINF:' + el.duration + ', ' + el.name + '\r\n' + el.url);
+                            });
+
+                            var textFileURL = createFile('text/plain;charset=utf-8', textFileData.join('\r\n'));
+                            var m3uFileURL = createFile('audio/x-mpegurl;charset=utf-8', m3uFileData.join('\r\n'));
+                            var downloadListBtnWrap = ge(downloadListBtnWrapID);
+
+                            if (textFileURL && m3uFileURL) {
+                                downloadListBtnWrap.innerHTML = ''
+                                + '<a href="' + m3uFileURL + '" class="flat_button secondary" download="' + playListTitle + '.m3u8">.M3U</a>&nbsp;'
+                                + '<a href="' + textFileURL + '" class="flat_button secondary" download="' + playListTitle + '.txt">.txt</a>&nbsp;'
+                                + '<a href="' + textFileURL + '" class="flat_button secondary" download="' + playListTitle + '.urls">.urls</a>';
+                            } else {
+                                downloadListBtnWrap.textContent = 'Не удалось создать файл.';
+                            }
+                        }
+                    }
+                });
+            };
+
+            (function () {
+                var items = [];
+                var title = '';
+
+                if ('_list' in ap._currentPlaylist) {
+                    items = ap._currentPlaylist._list;
+                    title = ap._currentPlaylist._title;
+                } else {
+                    for (var prop in ap._currentPlaylist) {
+                        if ('_list' in ap._currentPlaylist[prop]) {
+                            items = ap._currentPlaylist[prop]['_list'];
+                            title = ap._currentPlaylist[prop]['_title'];
+                            break;
+                        }
+                    }
+                }
+
+                each(items, function(i, el) {
+                    audioIdsArr.push(el[1] + '_' + el[0]);
+                });
+
+                playListTitle = (title || 'playlist') + ' (' + items.length + ')';
+            })();
+
+            if (audioIdsArr.length) {
+                showFastBox({
+                    title: 'VKDM - Скачать плейлист',
+                    dark: 1,
+                    hideButtons: 1,
+                    onBeforeHide: function () {
+                        isFastBoxClosed = true;
+
+                        each(geByClass('flat_button', ge(downloadListBtnWrapID), 'a'), function (i, el) {
+                            window.URL.revokeObjectURL(el.href);
+                        });
+                    }
+                }, ''
+                + '<div style="text-align: center;">'
+                + '<div style="color: #777;margin-bottom: 20px">'
+                + 'Скачать плейлист:'
+                + '<br><b>' + playListTitle + '</b>'
+                + '<br><i>(может занят продолжительное время)</i>'
+                + '</div>'
+                + '<div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>'
+                + '</div>');
+                getAudioLinks(audioIdsArr.splice(0, 10));
+            }
         }
     };
 
@@ -319,30 +461,28 @@
      * Helpers
      */
      function createIframeTransport(params) {
-        var iframeID = 'vkdm_iframe_' + (Math.random().toString(36).replace('.', ''));
+        var iframeID = getRandomID('iframe');
         var data = JSON.stringify(extend({
             iframeID: iframeID
         }, params));
         var host = params.url.match(/(^https?:\/\/[^\/]+)/)[1];
         var src = host + '/404?#vkdm=' + encodeURIComponent(data);
-        var iframe = ce('iframe', {id: iframeID, src: src, width: '1', height: '1'}, {visibility : 'hidden'});
+        var iframe = ce('iframe', {id: iframeID, src: src, width: '1', height: '1'}, {visibility: 'hidden'});
 
         document.body.appendChild(iframe);
     }
 
     function getJSONP(url, success) {
-        var data = null;
         var tempFuncName = 'vkdmFunc' + Date.now();
 
         window[tempFuncName] = function (response) {
-            data = response.response;
+            success(response.response);
             delete window[tempFuncName];
         };
 
         document.body.appendChild(ce('script', {
             src: url + '&callback=' + tempFuncName,
             onload: function () {
-                success(data);
                 re(this);
             },
             onerror: function () {
@@ -355,13 +495,15 @@
         var url = '';
 
         if (window.URL && window.URL.createObjectURL) {
-            if (createFile.lastBlob) {
-                window.URL.revokeObjectURL(createFile.lastBlob);
-            }
-
-            url = createFile.lastBlob = window.URL.createObjectURL(new Blob([data], {type: type}));
+            url = window.URL.createObjectURL(new Blob([data], {type: type}));
         }
 
         return url;
+    }
+
+    function getRandomID(name) {
+        var prefix = 'vkdm' + (name ? '_' + name + '_' : '_');
+
+        return prefix + Math.random().toString().slice(2, 10);
     }
 })();
