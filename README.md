@@ -4,4 +4,6 @@
 
 Подробности и установка на [Greasy Fork](https://greasyfork.org/ru/scripts/7385-vkdownloadmedia)
 
+Группа [ВК](https://vk.com/vkdownloadmedia)
+
 ![Imgur](http://i.imgur.com/XhOXpwO.png)
