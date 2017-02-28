@@ -2,12 +2,14 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     5.1
-// @date        2016-11-06
+// @version     5.2
+// @date        2017-03-01
 // @author      KJ86
-// @homepage    https://github.com/KJ86/VKDownloadMedia
-// @downloadURL https://github.com/KJ86/VKDownloadMedia/raw/master/VKDownloadMedia.user.js
-// @include     *vk*
+// @icon        data:image/gif;base64,R0lGODlhDQANAIABAHKTtgAAACH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=
+// @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
+// @downloadURL https://greasyfork.org/scripts/7385-vkdownloadmedia/code/VKDownloadMedia.user.js
+// @supportURL  https://vk.com/vkdownloadmedia
+// @include     *
 // @run-at      document-end
 // @grant       none
 // ==/UserScript==
@@ -58,6 +60,7 @@
         return;
     }
 
+    // Only on vk.com
     if (location.hostname !== 'vk.com') return;
 
     // Add download button
@@ -198,6 +201,16 @@
 
     // VKDM (Global)
     window.VKDM = {
+        _audioUnmaskSource: function (mask) {
+            var obj = {src: mask};
+
+            try {
+                AudioPlayerHTML5.prototype._setAudioNodeUrl(obj, mask);
+            } catch(e) {};
+
+            return obj.src;
+        },
+
         audioShowActionTooltip: function (btn) {
             // Get file size
             if (!btn.hasAttribute('data-file-size')) {
@@ -208,7 +221,7 @@
                     }, {
                         onDone: function (items) {
                             createIframeTransport({
-                                url: items[0][2],
+                                url: VKDM._audioUnmaskSource(items[0][2]),
                                 duration: items[0][5],
                                 fileSize: null,
                                 ttElementID: btn.id
@@ -246,7 +259,7 @@
             }, {
                 onDone: function (items) {
                     createIframeTransport({
-                        url: items[0][2],
+                        url: VKDM._audioUnmaskSource(items[0][2]),
                         fileName: ce('div', {innerHTML: items[0][4] + ' &ndash; ' + items[0][3]}).textContent
                     });
                 }
@@ -373,7 +386,7 @@
 
                         each(items, function(i, el) {
                             dataArr.push({
-                                url: el[2],
+                                url: VKDM._audioUnmaskSource(el[2]),
                                 name: el[4] + ' – ' + el[3],
                                 duration: el[5]
                             });
@@ -465,8 +478,7 @@
         var data = JSON.stringify(extend({
             iframeID: iframeID
         }, params));
-        var host = params.url.match(/(^https?:\/\/[^\/]+)/)[1];
-        var src = host + '/404?#vkdm=' + encodeURIComponent(data);
+        var src = params.url.split('.mp3')[0] + '.html?#vkdm=' + encodeURIComponent(data);
         var iframe = ce('iframe', {id: iframeID, src: src, width: '1', height: '1'}, {visibility: 'hidden'});
 
         document.body.appendChild(iframe);
