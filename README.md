@@ -6,4 +6,4 @@
 
 Группа [ВК](https://vk.com/vkdownloadmedia)
 
-![Imgur](http://i.imgur.com/XhOXpwO.png)
+![Imgur](http://i.imgur.com/1reXRyR.png)
