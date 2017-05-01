@@ -2,8 +2,8 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     5.2
-// @date        2017-03-01
+// @version     5.3
+// @date        2017-05-01
 // @author      KJ86
 // @icon        data:image/gif;base64,R0lGODlhDQANAIABAHKTtgAAACH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=
 // @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
@@ -63,13 +63,24 @@
     // Only on vk.com
     if (location.hostname !== 'vk.com') return;
 
+    // Add CSS rules
+    document.head.appendChild(ce('style', {
+        type: 'text/css',
+        textContent: ''
+        + '.audio_row .audio_acts .audio_act[id^="vkdm_download_"]'
+        + '{display: block; background: url(data:image/gif;base64,R0lGODlhCwANAIABAIKKmQAAACH5BAEAAAEALAAAAAALAA0AAAIXjIFoy72pnHzQQWDruTfwRHWM2IATxhQAOw==) no-repeat 50% 50%;}'
+        + '.audio_layer_container .audio_page__footer_download_playlist'
+        + '{float: right; cursor: pointer;}'
+        + '.audio_layer_container .audio_page__footer_download_playlist:hover'
+        + '{text-decoration: underline;}'
+    }));
+
     // Add download button
     (function () {
         var isDwnlPlBtnAdd = false;
         var dwAudioBtn = ce('div', {
             className: 'audio_act',
-            id: '',
-            innerHTML: '<div></div>'
+            id: ''
         });
 
         dwAudioBtn.setAttribute('onmouseover', 'VKDM.audioShowActionTooltip(this)');
@@ -145,59 +156,22 @@
             }
 
             // Play List
-            if (isDwnlPlBtnAdd === false) {
-                if (ap.layer && ap.layer._ttel) {
-                    var dwnlPlBtn = ce('div', {
-                        className: 'audio_download_current_btn audio_menu_btn'
-                    });
+            if (isDwnlPlBtnAdd === false && ap._currentPlaylist) {
+                var dwnlPlBtn = ce('span', {
+                    className: 'audio_page__footer_download_playlist _audio_page__footer_download_playlist',
+                    innerHTML: 'Скачать плейлист'
+                });
 
-                    dwnlPlBtn.setAttribute('onmouseover', "showTooltip(this, {text: 'Скачать', appendParentCls: '_audio_layer', black: 1, shift: [13, 9, 0]})");
-                    dwnlPlBtn.setAttribute('onclick', 'VKDM.downloadCurrentAudioPlayList(); return false;');
+                dwnlPlBtn.setAttribute('onclick', 'VKDM.downloadCurrentAudioPlayList()');
 
-                    domInsertAfter(dwnlPlBtn, geByClass1('audio_delete_current_btn', ap.layer._ttel));
+                domInsertAfter(dwnlPlBtn, geByClass1('_audio_page__footer_clear_playlist'));
 
-                    if (dwnlPlBtn.parentNode) {
-                        isDwnlPlBtnAdd = true;
-                    }
+                if (dwnlPlBtn.parentNode) {
+                    isDwnlPlBtnAdd = true;
                 }
             }
         }, 300);
     })();
-
-    // Add CSS rules
-    document.head.appendChild(ce('style', {
-        type: 'text/css',
-        textContent: ''
-        + '.audio_row .audio_acts .audio_act[id^="vkdm_download_"]'
-        + '{display: block}'
-        + '.audio_row .audio_acts .audio_act[id^="vkdm_download_"] > div,'
-        + '.audio_menu_btn.audio_download_current_btn'
-        + '{background-image: url("data:image/gif;base64,R0lGODlhDQANAIABAHKTtgAAACH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=")}'
-        + '.audio_menu_btn.audio_download_current_btn'
-        + '{height: 13px; width: 13px;}'
-    }));
-
-    // Remove temp iframe
-    window.addEventListener('message', function (e) {
-        if (e.data.indexOf('VKDM:') !== -1) {
-            var data = JSON.parse(e.data.replace('VKDM:', ''));
-            var iframeID = data.iframeID;
-
-            if (data.fileSize) {
-                var ttElement = ge(data.ttElementID);
-
-                ttElement.classList.remove('vkdm_ajax_in_process');
-                ttElement.setAttribute('data-file-size', data.fileSize);
-                ttElement.setAttribute('data-audio-duration', data.duration);
-                ttElement.tt.shown = false;
-                ttElement.tt.show();
-            }
-
-            setTimeout(function () {
-                re(iframeID);
-            }, 1000);
-        }
-    }, false);
 
     // VKDM (Global)
     window.VKDM = {
@@ -212,40 +186,47 @@
         },
 
         audioShowActionTooltip: function (btn) {
-            // Get file size
-            if (!btn.hasAttribute('data-file-size')) {
-                if (!btn.classList.contains('vkdm_ajax_in_process')) {
-                    ajax.post('al_audio.php', {
-                        act: 'reload_audio',
-                        ids: btn.getAttribute('data-full-id')
-                    }, {
-                        onDone: function (items) {
-                            createIframeTransport({
-                                url: VKDM._audioUnmaskSource(items[0][2]),
-                                duration: items[0][5],
-                                fileSize: null,
-                                ttElementID: btn.id
-                            });
-                        }
-                    });
-                    btn.classList.add('vkdm_ajax_in_process');
+            var getTTtext = function () {
+                var duration = btn.getAttribute('data-audio-duration');
+                var fileSizeByte = btn.getAttribute('data-file-size');
+                var fileSizeMByte = 0;
+                var bitrate = 0;
+
+                if (duration && fileSizeByte) {
+                    fileSizeMByte = (fileSizeByte / 1024 / 1024).toFixed(1);
+                    bitrate = parseInt(fileSizeByte * 8 / duration / 1000);
                 }
+
+                return 'Скачать аудиозапись<br>Битрейт: ~' + bitrate + ' кбит/с<br>Размер: ' + fileSizeMByte + ' МБ';
+            };
+
+            if (!btn.hasAttribute('data-file-size') && !btn.classList.contains('vkdm_ajax_in_process')) {
+                ajax.post('al_audio.php', {
+                    act: 'reload_audio',
+                    ids: btn.getAttribute('data-full-id')
+                }, {
+                    onDone: function (items) {
+                        var urlMask = items[0][2];
+                        var duration = items[0][5];
+
+                        iframeTransport({
+                            url: VKDM._audioUnmaskSource(urlMask),
+                            fileSize: null
+                        }, function (data) {
+                            btn.classList.remove('vkdm_ajax_in_process');
+                            btn.setAttribute('data-file-size', data.fileSize);
+                            btn.setAttribute('data-audio-duration', duration);
+
+                            geByClass1('tt_text', btn.tt.container).innerHTML = getTTtext();
+                            tooltips.rePositionTT(btn.tt);
+                        });
+                    }
+                });
+                btn.classList.add('vkdm_ajax_in_process');
             }
 
             showTooltip(btn, {
-                text: function () {
-                    var duration = btn.getAttribute('data-audio-duration');
-                    var fileSizeByte = btn.getAttribute('data-file-size');
-                    var fileSizeMByte = 0;
-                    var bitrate = 0;
-
-                    if (duration && fileSizeByte) {
-                        fileSizeMByte = (fileSizeByte / 1024 / 1024).toFixed(1);
-                        bitrate = parseInt(fileSizeByte * 8 / duration / 1000);
-                    }
-
-                    return 'Скачать аудиозапись<br>Битрейт: ~' + bitrate + ' кбит/с<br>Размер: ' + fileSizeMByte + ' МБ';
-                },
+                text: getTTtext,
                 black: 1,
                 shift: [7, 5, 0],
                 needLeft: true
@@ -258,7 +239,7 @@
                 ids: btn.getAttribute('data-full-id')
             }, {
                 onDone: function (items) {
-                    createIframeTransport({
+                    iframeTransport({
                         url: VKDM._audioUnmaskSource(items[0][2]),
                         fileName: ce('div', {innerHTML: items[0][4] + ' &ndash; ' + items[0][3]}).textContent
                     });
@@ -267,7 +248,7 @@
         },
 
         downloadVideo: function (url, fileName) {
-            createIframeTransport({
+            iframeTransport({
                 url: url,
                 fileName: fileName
             });
@@ -470,15 +451,41 @@
         }
     };
 
+    // Iframe transport handler
+    window.addEventListener('message', function (e) {
+        if (e.data.indexOf('VKDM:') !== -1) {
+            var data = JSON.parse(e.data.replace('VKDM:', ''));
+            var iframe = ge(data.iframeID);
+
+            if (data.callback && typeof window[data.callback] === 'function') {
+                window[data.callback].call(iframe, data);
+                delete window[data.callback];
+            }
+
+            setTimeout(function () {
+                re(iframe);
+            }, 1000);
+        }
+    }, false);
+
     /*!
      * Helpers
      */
-     function createIframeTransport(params) {
+     function iframeTransport(params, callback) {
+        var url = params.url;
         var iframeID = getRandomID('iframe');
-        var data = JSON.stringify(extend({
+        var data = extend({
             iframeID: iframeID
-        }, params));
-        var src = params.url.split('.mp3')[0] + '.html?#vkdm=' + encodeURIComponent(data);
+        }, params);
+
+        if (typeof callback === 'function') {
+            var callBackFuncName = 'vkdmFunc' + Date.now();
+
+            data.callback = callBackFuncName;
+            window[callBackFuncName] = callback;
+        }
+
+        var src = url.split(/\.([^\.]+?)\?/)[0] + '.html?#vkdm=' + encodeURIComponent(JSON.stringify(data));
         var iframe = ce('iframe', {id: iframeID, src: src, width: '1', height: '1'}, {visibility: 'hidden'});
 
         document.body.appendChild(iframe);
