@@ -2,10 +2,10 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     5.3
-// @date        2017-05-01
+// @version     5.4
+// @date        2017-06-28
 // @author      KJ86
-// @icon        data:image/gif;base64,R0lGODlhDQANAIABAHKTtgAAACH5BAEAAAEALAAAAAANAA0AAAIYjAOZx+2n1pstgmlxrDabrnCeKD0hhTgFADs=
+// @icon        data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDYuMzQ5OTk5OSA2LjM0OTk5OTkiPjxnIGZpbGw9IiM4MjhhOTkiPjxwYXRoIGQ9Im0gMi42NDU4MzMsMS41ODc0OTk5IGMgMC41MjkxNjcsMTBlLTggLTEuMzU0MzkxMyw4ZS03IDEuMDU4MzMzNiwxMGUtOCB2IDEuMzIyOTE2NiBoIDAuNzkzNzUgTCAzLjE3NSw0LjQ5NzkxNjYgMS44NTIwODMsMi45MTA0MTY2IGggMC43OTM3NSB6IiAvPjxwYXRoIGQ9Ik0gMS44NTIwODMsNC40OTc5MTY2IEggMS41ODc0OTk3IHYgMC41MjkxNjY2IGwgMy4xNzUwMDAyLDFlLTcgViA0LjQ5NzkxNjYgSCA0LjQ5NzkxNjYgdiAwLjI2NDU4MzMgbCAtMi42NDU4MzM2LDAgeiIgLz48L2c+PC9zdmc+
 // @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
 // @downloadURL https://greasyfork.org/scripts/7385-vkdownloadmedia/code/VKDownloadMedia.user.js
 // @supportURL  https://vk.com/vkdownloadmedia
@@ -24,36 +24,42 @@
         if (param !== null) {
             param = JSON.parse(decodeURIComponent(param[1]));
 
-            if (typeof param.fileName !== 'undefined') { // Download file
-                var fileExtension = function () {
-                    var i, match;
-                    var arr = param.url.split('.');
+            switch (param.action) {
+                // Download file
+                case 'download':
+                    var fileExtension = function () {
+                        var i, match;
+                        var arr = param.url.split('.');
 
-                    for (i = 0; i < arr.length; i++) {
-                        match = arr[i].match(/(.+?)\?/);
+                        for (i = 0; i < arr.length; i++) {
+                            match = arr[i].match(/(.+?)\?/);
 
-                        if (match) {
-                            return match[1];
+                            if (match) {
+                                return match[1];
+                            }
                         }
-                    }
-                }();
-                var a = document.createElement('a');
+                    }();
+                    var a = document.createElement('a');
 
-                a.href = param.url;
-                a.download = param.fileName + '.' + fileExtension;
+                    a.href = param.url.split('?')[0];
+                    a.download = param.fileName + '.' + fileExtension;
 
-                document.body.appendChild(a).click();
-                window.top.postMessage('VKDM:' + JSON.stringify(param), '*');
-            } else if (typeof param.fileSize !== 'undefined') { // Get file size
-                var xhr = new XMLHttpRequest();
-
-                xhr.open('HEAD', param.url);
-                xhr.onload = function () {
-                    param.fileSize = xhr.getResponseHeader('content-length');
-
+                    document.body.appendChild(a).click();
                     window.top.postMessage('VKDM:' + JSON.stringify(param), '*');
-                };
-                xhr.send();
+                    break;
+
+                // Get file size
+                case 'get-size':
+                    var xhr = new XMLHttpRequest();
+
+                    xhr.open('HEAD', param.url);
+                    xhr.onload = function () {
+                        param.fileSize = xhr.getResponseHeader('content-length');
+
+                        window.top.postMessage('VKDM:' + JSON.stringify(param), '*');
+                    };
+                    xhr.send();
+                    break;
             }
         }
 
@@ -66,40 +72,54 @@
     // Add CSS rules
     document.head.appendChild(ce('style', {
         type: 'text/css',
-        textContent: ''
-        + '.audio_row .audio_acts .audio_act[id^="vkdm_download_"]'
-        + '{display: block; background: url(data:image/gif;base64,R0lGODlhCwANAIABAIKKmQAAACH5BAEAAAEALAAAAAALAA0AAAIXjIFoy72pnHzQQWDruTfwRHWM2IATxhQAOw==) no-repeat 50% 50%;}'
-        + '.audio_layer_container .audio_page__footer_download_playlist'
-        + '{float: right; cursor: pointer;}'
-        + '.audio_layer_container .audio_page__footer_download_playlist:hover'
-        + '{text-decoration: underline;}'
+        textContent: (
+            '.audio_row .audio_row__action_download {background-image: url(data:image/svg+xml;charset=utf-8;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDYuMzQ5OTk5OSA2LjM0OTk5OTkiPjxnIGZpbGw9IiM4MjhhOTkiPjxwYXRoIGQ9Im0gMi42NDU4MzMsMS41ODc0OTk5IGMgMC41MjkxNjcsMTBlLTggLTEuMzU0MzkxMyw4ZS03IDEuMDU4MzMzNiwxMGUtOCB2IDEuMzIyOTE2NiBoIDAuNzkzNzUgTCAzLjE3NSw0LjQ5NzkxNjYgMS44NTIwODMsMi45MTA0MTY2IGggMC43OTM3NSB6IiAvPjxwYXRoIGQ9Ik0gMS44NTIwODMsNC40OTc5MTY2IEggMS41ODc0OTk3IHYgMC41MjkxNjY2IGwgMy4xNzUwMDAyLDFlLTcgViA0LjQ5NzkxNjYgSCA0LjQ5NzkxNjYgdiAwLjI2NDU4MzMgbCAtMi42NDU4MzM2LDAgeiIgLz48L2c+PC9zdmc+);}' +
+            '.audio_layer_container .audio_page__footer_download_playlist {float: right; cursor: pointer;}' +
+            '.audio_layer_container .audio_page__footer_download_playlist:hover {text-decoration: underline;}'
+        )
     }));
 
+    // Iframe transport handler
+    window.addEventListener('message', function (e) {
+        if (e.data.indexOf('VKDM:') !== -1) {
+            var data = JSON.parse(e.data.replace('VKDM:', ''));
+            var iframe = ge(data.iframeID);
+
+            if (data.callback && typeof window[data.callback] === 'function') {
+                window[data.callback].call(iframe, data);
+                delete window[data.callback];
+            }
+
+            setTimeout(function () {
+                re(iframe);
+            }, 1000);
+        }
+    }, false);
+
     // Add download button
-    (function () {
+    setInterval(function () {
         var isDwnlPlBtnAdd = false;
-        var dwAudioBtn = ce('div', {
-            className: 'audio_act',
-            id: ''
-        });
 
-        dwAudioBtn.setAttribute('onmouseover', 'VKDM.audioShowActionTooltip(this)');
-        dwAudioBtn.setAttribute('onclick', 'VKDM.downloadAudio(this)');
-
-        setInterval(function () {
+        return function () {
             // Audio
-            var audioRows = domQuery('.audio_row:not(.candownload):not(.claimed)');
+            var audioRowActions = geByClass1('audio_row__actions');
 
-            if (audioRows.length) {
-                each(audioRows, function (i, audioRow) {
-                    var audioActs = audioRow.querySelector('.audio_acts');
-                    var clone = dwAudioBtn.cloneNode(true);
+            if (audioRowActions) {
+                var audioRow = domClosest('audio_row', audioRowActions);
 
-                    clone.id = getRandomID('download');
-                    clone.setAttribute('data-full-id', audioRow.getAttribute('data-full-id'));
-                    audioActs.insertBefore(clone, audioActs.firstElementChild);
-                    audioRow.classList.add('candownload');
-                });
+                if (hasClass(audioRow, 'audio_claimed') === false) {
+                    var downloadAction = geByClass1('audio_row__action_download', audioRowActions);
+
+                    if (!downloadAction) {
+                        downloadAction = se('<button aria-label="Скачать аудиозапись" data-action="download" class="audio_row__action audio_row__action_download" onmouseover="VKDM.audioShowActionTooltip(this)"></button>');
+
+                        downloadAction.addEventListener('click', function (e) {
+                            VKDM.downloadAudio(this);
+                            cancelEvent(e);
+                        });
+                        audioRowActions.insertBefore(downloadAction, audioRowActions.firstElementChild);
+                    }
+                }
             }
 
             // Video
@@ -145,7 +165,6 @@
                         }
                     }
                 }
-
             }
 
             // Photo
@@ -170,8 +189,8 @@
                     isDwnlPlBtnAdd = true;
                 }
             }
-        }, 300);
-    })();
+        };
+    }(), 300);
 
     // VKDM (Global)
     window.VKDM = {
@@ -203,15 +222,15 @@
             if (!btn.hasAttribute('data-file-size') && !btn.classList.contains('vkdm_ajax_in_process')) {
                 ajax.post('al_audio.php', {
                     act: 'reload_audio',
-                    ids: btn.getAttribute('data-full-id')
+                    ids: domClosest('audio_row', btn).getAttribute('data-full-id')
                 }, {
                     onDone: function (items) {
                         var urlMask = items[0][2];
                         var duration = items[0][5];
 
                         iframeTransport({
-                            url: VKDM._audioUnmaskSource(urlMask),
-                            fileSize: null
+                            action: 'get-size',
+                            url: VKDM._audioUnmaskSource(urlMask)
                         }, function (data) {
                             btn.classList.remove('vkdm_ajax_in_process');
                             btn.setAttribute('data-file-size', data.fileSize);
@@ -236,10 +255,11 @@
         downloadAudio: function (btn) {
             ajax.post('al_audio.php', {
                 act: 'reload_audio',
-                ids: btn.getAttribute('data-full-id')
+                ids: domClosest('audio_row', btn).getAttribute('data-full-id')
             }, {
                 onDone: function (items) {
                     iframeTransport({
+                        action: 'download',
                         url: VKDM._audioUnmaskSource(items[0][2]),
                         fileName: ce('div', {innerHTML: items[0][4] + ' &ndash; ' + items[0][3]}).textContent
                     });
@@ -249,6 +269,7 @@
 
         downloadVideo: function (url, fileName) {
             iframeTransport({
+                action: 'download',
                 url: url,
                 fileName: fileName
             });
@@ -297,9 +318,10 @@
                     var url = createFile('text/plain;charset=utf-8', srcArr.join('\r\n'));
 
                     if (url) {
-                        downloadListBtnWrap.innerHTML = ''
-                        + '<a href="' + url + '" class="flat_button secondary" download="' + fileName + '.txt">.txt</a>&nbsp;'
-                        + '<a href="' + url + '" class="flat_button secondary" download="' + fileName + '.urls">.urls</a>';
+                        downloadListBtnWrap.innerHTML = (
+                            '<a href="' + url + '" class="flat_button secondary" download="' + fileName + '.txt">.txt</a>&nbsp;' +
+                            '<a href="' + url + '" class="flat_button secondary" download="' + fileName + '.urls">.urls</a>'
+                        );
                     } else {
                         downloadListBtnWrap.textContent = 'Не удалось создать файл.';
                     }
@@ -331,15 +353,16 @@
                         window.URL.revokeObjectURL(el.href);
                     });
                 }
-            }, ''
-            + '<div style="text-align: center;">'
-            + '<div style="color: #777;margin-bottom: 20px">'
-            + 'Скачать список всех фотографий с альбома:'
-            + '<br><b>' + fileName + '</b>'
-            + '<br><i>(может занят продолжительное время)</i>'
-            + '</div>'
-            + '<div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>'
-            + '</div>');
+            }, (
+                '<div style="text-align: center;">' +
+                '<div style="color: #777;margin-bottom: 20px">' +
+                'Скачать список всех фотографий с альбома:' +
+                '<br><b>' + fileName + '</b>' +
+                '<br><i>(может занят продолжительное время)</i>' +
+                '</div>' +
+                '<div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>' +
+                '</div>'
+            ));
             getAllItems();
         },
 
@@ -389,10 +412,11 @@
                             var downloadListBtnWrap = ge(downloadListBtnWrapID);
 
                             if (textFileURL && m3uFileURL) {
-                                downloadListBtnWrap.innerHTML = ''
-                                + '<a href="' + m3uFileURL + '" class="flat_button secondary" download="' + playListTitle + '.m3u8">.M3U</a>&nbsp;'
-                                + '<a href="' + textFileURL + '" class="flat_button secondary" download="' + playListTitle + '.txt">.txt</a>&nbsp;'
-                                + '<a href="' + textFileURL + '" class="flat_button secondary" download="' + playListTitle + '.urls">.urls</a>';
+                                downloadListBtnWrap.innerHTML = (
+                                    '<a href="' + m3uFileURL + '" class="flat_button secondary" download="' + playListTitle + '.m3u8">.M3U</a>&nbsp;' +
+                                    '<a href="' + textFileURL + '" class="flat_button secondary" download="' + playListTitle + '.txt">.txt</a>&nbsp;' +
+                                    '<a href="' + textFileURL + '" class="flat_button secondary" download="' + playListTitle + '.urls">.urls</a>'
+                                );
                             } else {
                                 downloadListBtnWrap.textContent = 'Не удалось создать файл.';
                             }
@@ -437,36 +461,20 @@
                             window.URL.revokeObjectURL(el.href);
                         });
                     }
-                }, ''
-                + '<div style="text-align: center;">'
-                + '<div style="color: #777;margin-bottom: 20px">'
-                + 'Скачать плейлист:'
-                + '<br><b>' + playListTitle + '</b>'
-                + '<br><i>(может занят продолжительное время)</i>'
-                + '</div>'
-                + '<div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>'
-                + '</div>');
+                }, (
+                    '<div style="text-align: center;">' +
+                    '<div style="color: #777;margin-bottom: 20px">' +
+                    'Скачать плейлист:' +
+                    '<br><b>' + playListTitle + '</b>' +
+                    '<br><i>(может занят продолжительное время)</i>' +
+                    '</div>' +
+                    '<div id="' + downloadListBtnWrapID + '"><img src="/images/upload.gif" style="margin-top: 10px; margin-bottom: 7px;" /></div>' +
+                    '</div>'
+                ));
                 getAudioLinks(audioIdsArr.splice(0, 10));
             }
         }
     };
-
-    // Iframe transport handler
-    window.addEventListener('message', function (e) {
-        if (e.data.indexOf('VKDM:') !== -1) {
-            var data = JSON.parse(e.data.replace('VKDM:', ''));
-            var iframe = ge(data.iframeID);
-
-            if (data.callback && typeof window[data.callback] === 'function') {
-                window[data.callback].call(iframe, data);
-                delete window[data.callback];
-            }
-
-            setTimeout(function () {
-                re(iframe);
-            }, 1000);
-        }
-    }, false);
 
     /*!
      * Helpers
