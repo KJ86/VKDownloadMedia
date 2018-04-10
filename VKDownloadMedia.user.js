@@ -174,8 +174,8 @@
                         var bitrate = '...';
 
                         if (duration && fileSize) {
-                            fileSizeMByte = (fileSize / 1024 / 1024).toFixed(1) + ' кбит/с';
-                            bitrate = '~' + (fileSize * 8 / duration / 1000).toFixed(0) + ' МБ';
+                            fileSizeMByte = (fileSize / 1024 / 1024).toFixed(1) + ' МБ';
+                            bitrate = '~' + (fileSize * 8 / duration / 1000).toFixed(0) + ' кбит/с';
                         }
 
                         return 'Скачать аудиозапись<br>Битрейт: ' + bitrate + '<br>Размер: ' + fileSizeMByte;
