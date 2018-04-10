@@ -1,4 +1,4 @@
-##VKDownloadMedia
+## VKDownloadMedia
 
 **VKDownloadMedia** – это JavaScript-программа для простой и безопасной загрузки фото/видео/аудиозаписей из соц. сети [«ВКонтакте»](http://vk.com/).
 
