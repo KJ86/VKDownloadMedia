@@ -2,8 +2,8 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     6
-// @date        2019-05-09
+// @version     6.1
+// @date        2019-09-22
 // @author      KJ86
 // @icon        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjODI4YTk5IiBkPSJtIDEwLDYgaCA0IHYgNiBoIDMgbCAtNSw2IC01LC02IGggMyB6IiBwYWludC1vcmRlcj0ibWFya2VycyBzdHJva2UgZmlsbCIvPjwvc3ZnPg==
 // @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
@@ -128,31 +128,49 @@
                     onDone(VKDM._audioUnmaskSource._module.audioUnmaskSource(mask));
                 }
             } else {
-                var req = new XMLHttpRequest();
+                var origin = 'https://m.vk.com';
 
-                req.open('get', '/js/cmodules/mobile/common.js');
-                req.onload = function () {
-                    try {
-                        var obj = {};
-                        var inject = 'var a0 = arguments[0]; for (var p in a0) {if (a0[p].toString().indexOf(".audioUnmaskSource=") !== -1) {a0[p](null, obj);break;}} return;';
+                request({
+                    url: origin,
+                    _isAjax: false,
+                    _isMobile: true
+                }, function (response) {
+                    var match = response.responseText.match(/src="(.+?common\..+?js.*?)"/);
+                    var commonJsSrc = match && match[1];
 
-                        eval(req.response.replace(/^!function.*?\{/, '$& ' + inject));
+                    if (commonJsSrc) {
+                        request({
+                            url: origin + commonJsSrc,
+                            _isAjax: false,
+                            _isMobile: true
+                        }, function (response) {
+                            try {
+                                var obj = {};
+                                var inject = 'var a0 = arguments[0]; for (var p in a0) {if (a0[p].toString().indexOf(".audioUnmaskSource=") !== -1) {a0[p](null, obj);break;}} return;';
 
-                        if ('audioUnmaskSource' in obj) {
-                            VKDM._audioUnmaskSource._module = obj;
-                            VKDM._audioUnmaskSource(mask, onDone);
-                        }
-                    } catch (e) {}
-                };
-                req.send();
+                                eval(response.responseText.replace(/^!function.*?\{/, '$& ' + inject));
+
+                                if ('audioUnmaskSource' in obj) {
+                                    VKDM._audioUnmaskSource._module = obj;
+                                    VKDM._audioUnmaskSource(mask, onDone);
+                                }
+                            } catch (e) {}
+                        });
+                    }
+                });
             }
         },
 
         audioRequestData: function (ids, onLoad) {
-            request.post('/al_audio.php', {
-                'act': 'reload_audio',
-                'al': '1',
-                'ids': ids
+            request({
+                url: '/al_audio.php',
+                method: 'POST',
+                data: {
+                    'act': 'reload_audio',
+                    'al': '1',
+                    'ids': ids
+                },
+                _isMobile: true
             }, function (response) {
                 try {
                     var items = JSON.parse(response.responseText.split('<!>')[5].replace('<!json>', ''));
@@ -579,15 +597,39 @@
     // region Helpers
     /**
      * @param {Object} options
+     * @param {Boolean} [options._isAjax=true]
+     * @param {Boolean} [options._isMobile=false]
      * @param {Function} [success]
      * @returns {*}
      */
     function request(options, success) {
-        var headers = {
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240',
-            'x-requested-with': 'XMLHttpRequest'
-        };
-        var onload = function (response) {
+        options.method = options.method || 'GET';
+        options.headers = options.headers || {};
+
+        if (options._isAjax !== false) {
+            options.headers['x-requested-with'] = 'XMLHttpRequest';
+        }
+
+        if (options._isMobile) {
+            options.headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240';
+        }
+
+        // POST
+        if (options.method.toUpperCase() === 'POST') {
+            options.headers['content-type'] = 'application/x-www-form-urlencoded';
+
+            if (typeof options.data === 'object') {
+                var dataArr = [];
+
+                for (var p in options.data) {
+                    dataArr.push(encodeURIComponent(p) + '=' + encodeURIComponent(options.data[p]));
+                }
+
+                options.data = dataArr.join('&');
+            }
+        }
+
+        options.onload = function (response) {
             response.getResponseHeader = function (name) {
                 var header;
                 var headers = response.responseHeaders.split('\n');
@@ -608,52 +650,8 @@
             }
         };
 
-        options.headers = options.headers || {};
-
-        for (var p in headers) {
-            options.headers[p] = headers[p];
-        }
-
-        options.onload = onload;
-
         return GM_xmlhttpRequest(options);
     }
-
-    /**
-     * @param {String} url
-     * @param {Object|Function} [data]
-     * @param {Function} [success]
-     * @returns {*}
-     */
-    request.post = function (url, data, success) {
-        if (typeof data === 'function') {
-            success = data;
-            data = undefined;
-        }
-
-        switch (typeof data) {
-            case 'function':
-                success = data;
-                data = undefined;
-                break;
-            case 'object':
-                var dataArr = [];
-                for (var p in data) {
-                    dataArr.push(encodeURIComponent(p) + '=' + encodeURIComponent(data[p]));
-                }
-                data = dataArr.join('&');
-                break;
-        }
-
-        return request({
-            url: url,
-            method: 'post',
-            headers: {
-                'content-type': 'application/x-www-form-urlencoded'
-            },
-            data: data
-        }, success);
-    };
 
     /**
      * @param {String} url
