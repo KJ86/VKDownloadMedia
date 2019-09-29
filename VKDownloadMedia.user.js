@@ -2,8 +2,8 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     6.1
-// @date        2019-09-22
+// @version     6.1.1
+// @date        2019-09-29
 // @author      KJ86
 // @icon        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjODI4YTk5IiBkPSJtIDEwLDYgaCA0IHYgNiBoIDMgbCAtNSw2IC01LC02IGggMyB6IiBwYWludC1vcmRlcj0ibWFya2VycyBzdHJva2UgZmlsbCIvPjwvc3ZnPg==
 // @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
@@ -115,54 +115,56 @@
     var VKDM = {
         /**
          * @param {Array|String} mask
-         * @param {Function} onDone
-         * @private
+         * @returns {Promise}
          */
-        _audioUnmaskSource: function (mask, onDone) {
-            if (VKDM._audioUnmaskSource._module) {
-                if (Array.isArray(mask)) {
-                    onDone(mask.map(function (item) {
-                        return VKDM._audioUnmaskSource._module.audioUnmaskSource(item);
-                    }));
-                } else {
-                    onDone(VKDM._audioUnmaskSource._module.audioUnmaskSource(mask));
-                }
-            } else {
-                var origin = 'https://m.vk.com';
-
-                request({
-                    url: origin,
+        audioUnmaskSource: function (mask) {
+            if (typeof VKDM.audioUnmaskSource._getModule === 'undefined') {
+                VKDM.audioUnmaskSource._getModule = request({
+                    url: 'https://m.vk.com',
                     _isAjax: false,
                     _isMobile: true
-                }, function (response) {
+                }).then(function (response) {
                     var match = response.responseText.match(/src="(.+?common\..+?js.*?)"/);
                     var commonJsSrc = match && match[1];
 
                     if (commonJsSrc) {
-                        request({
-                            url: origin + commonJsSrc,
+                        return request({
+                            url: 'https://m.vk.com' + commonJsSrc,
                             _isAjax: false,
                             _isMobile: true
-                        }, function (response) {
-                            try {
-                                var obj = {};
-                                var inject = 'var a0 = arguments[0]; for (var p in a0) {if (a0[p].toString().indexOf(".audioUnmaskSource=") !== -1) {a0[p](null, obj);break;}} return;';
+                        }).then(function (response) {
+                            var modules = {};
+                            var inject = 'var a0 = arguments[0]; for (var p in a0) {if (a0[p].toString().indexOf(".audioUnmaskSource=") !== -1) {a0[p](null, modules);break;}} return;';
 
-                                eval(response.responseText.replace(/^!function.*?\{/, '$& ' + inject));
+                            eval(response.responseText.replace(/^!function.*?\{/, '$& ' + inject));
 
-                                if ('audioUnmaskSource' in obj) {
-                                    VKDM._audioUnmaskSource._module = obj;
-                                    VKDM._audioUnmaskSource(mask, onDone);
-                                }
-                            } catch (e) {}
+                            if ('audioUnmaskSource' in modules) {
+                                return Promise.resolve(modules);
+                            }
                         });
                     }
+
+                    return Promise.reject();
                 });
             }
+
+            return VKDM.audioUnmaskSource._getModule.then(function (modules) {
+                if (Array.isArray(mask)) {
+                    return mask.map(function (item) {
+                        return modules.audioUnmaskSource(item);
+                    });
+                }
+
+                return modules.audioUnmaskSource(mask);
+            });
         },
 
-        audioRequestData: function (ids, onLoad) {
-            request({
+        /**
+         * @param ids
+         * @returns {Promise}
+         */
+        audioRequestData: function (ids) {
+            return request({
                 url: '/al_audio.php',
                 method: 'POST',
                 data: {
@@ -171,12 +173,27 @@
                     'ids': ids
                 },
                 _isMobile: true
-            }, function (response) {
-                try {
-                    var items = JSON.parse(response.responseText.split('<!>')[5].replace('<!json>', ''));
+            }).then(function (response) {
+                var items;
 
-                    onLoad(items);
-                } catch (e) {}
+                try {
+                    var json = JSON.parse(response.response);
+
+                    items = json.payload[1][0];
+                } catch (e) {
+                    // Deprecated
+                    try {
+                        if (response.response.indexOf('<!>') !== -1) {
+                            items = JSON.parse(response.responseText.split('<!>')[5].replace('<!json>', ''));
+                        }
+                    } catch (e) {}
+                }
+
+                if (Array.isArray(items)) {
+                    return Promise.resolve(items);
+                }
+
+                return Promise.reject();
             });
         },
 
@@ -203,12 +220,12 @@
 
                 btn.classList.add('vkdm_ajax_in_progress');
 
-                VKDM.audioRequestData(ids, function (items) {
-                    VKDM._audioUnmaskSource(items[0][2], function (url) {
+                VKDM.audioRequestData(ids).then(function (items) {
+                    VKDM.audioUnmaskSource(items[0][2]).then(function (url) {
                         request({
                             url: url,
                             method: 'HEAD'
-                        }, function (response) {
+                        }).then(function (response) {
                             var contentLength = response.getResponseHeader('content-length');
 
                             data(audioRow, 'vkdm_audio_row_duration', parseInt(items[0][5]));
@@ -238,8 +255,8 @@
             var hashes = audioData[13].split('/');
             var ids = audioRow.getAttribute('data-full-id') + '_' + hashes[2] + '_' + hashes[5];
 
-            VKDM.audioRequestData(ids, function (items) {
-                VKDM._audioUnmaskSource(items[0][2], function (url) {
+            VKDM.audioRequestData(ids).then(function (items) {
+                VKDM.audioUnmaskSource(items[0][2]).then(function (url) {
                     GM_download(url, ce('div', {innerHTML: items[0][4] + ' &ndash; ' + items[0][3]}).textContent + getExtension(url));
                 });
             });
@@ -393,7 +410,7 @@
                         void function getAudioLinks(ids) {
                             if (isFastBoxClosed === true) return;
 
-                            VKDM.audioRequestData(ids, function (items) {
+                            VKDM.audioRequestData(ids).then(function (items) {
                                 if (!Array.isArray(items)) {
                                     setTimeout(function () {
                                         getAudioLinks(ids);
@@ -418,9 +435,9 @@
                                     var textFileData = [];
                                     var m3uFileData = ['#EXTM3U'];
 
-                                    VKDM._audioUnmaskSource(dataArr.map(function (el) {
+                                    VKDM.audioUnmaskSource(dataArr.map(function (el) {
                                         return el.mask;
-                                    }), function (urlArr) {
+                                    })).then(function (urlArr) {
                                         dataArr.forEach(function (el, i) {
                                             textFileData.push(urlArr[i]);
                                             m3uFileData.push('#EXTINF:' + el.duration + ', ' + el.name + '\r\n' + urlArr[i]);
@@ -469,7 +486,14 @@
     );
 
     // Adding audio download button
-    DOMNodeInserted('.audio_row:not(.audio_claimed) .audio_row__actions', function (node) {
+    DOMNodeInserted('.audio_row:not(.audio_claimed) .audio_row__actions', function handler(node) {
+        if (handler.firstUse !== true) {
+            handler.firstUse = true;
+
+            // Preload module
+            VKDM.audioUnmaskSource('');
+        }
+
         var btn = se('<button aria-label="Скачать аудиозапись" data-action="download" class="audio_row__action audio_row__action_download"></button>');
 
         addEvent(btn, 'click', function (e) {
@@ -599,58 +623,65 @@
      * @param {Object} options
      * @param {Boolean} [options._isAjax=true]
      * @param {Boolean} [options._isMobile=false]
-     * @param {Function} [success]
-     * @returns {*}
+     * @returns {Promise}
      */
-    function request(options, success) {
-        options.method = options.method || 'GET';
-        options.headers = options.headers || {};
+    function request(options) {
+        return new Promise(function (resolve, reject) {
+            options.method = options.method || 'GET';
+            options.headers = options.headers || {};
 
-        if (options._isAjax !== false) {
-            options.headers['x-requested-with'] = 'XMLHttpRequest';
-        }
-
-        if (options._isMobile) {
-            options.headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240';
-        }
-
-        // POST
-        if (options.method.toUpperCase() === 'POST') {
-            options.headers['content-type'] = 'application/x-www-form-urlencoded';
-
-            if (typeof options.data === 'object') {
-                var dataArr = [];
-
-                for (var p in options.data) {
-                    dataArr.push(encodeURIComponent(p) + '=' + encodeURIComponent(options.data[p]));
-                }
-
-                options.data = dataArr.join('&');
+            if (options._isAjax !== false) {
+                options.headers['x-requested-with'] = 'XMLHttpRequest';
             }
-        }
 
-        options.onload = function (response) {
-            response.getResponseHeader = function (name) {
-                var header;
-                var headers = response.responseHeaders.split('\n');
+            if (options._isMobile) {
+                options.headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10240';
+            }
 
-                for (var i = 0; i < headers.length; i++) {
-                    header = headers[i].split(':');
+            // POST
+            if (options.method.toUpperCase() === 'POST') {
+                options.headers['content-type'] = 'application/x-www-form-urlencoded';
 
-                    if (header[0].trim().toLowerCase() === name.toLowerCase()) {
-                        return header[1].trim();
+                if (typeof options.data === 'object') {
+                    var dataArr = [];
+
+                    for (var p in options.data) {
+                        dataArr.push(encodeURIComponent(p) + '=' + encodeURIComponent(options.data[p]));
                     }
-                }
 
-                return null;
+                    options.data = dataArr.join('&');
+                }
+            }
+
+            options.onload = function (response) {
+                if (response.status === 200) {
+                    response.getResponseHeader = function (name) {
+                        var header;
+                        var headers = response.responseHeaders.split('\n');
+
+                        for (var i = 0; i < headers.length; i++) {
+                            header = headers[i].split(':');
+
+                            if (header[0].trim().toLowerCase() === name.toLowerCase()) {
+                                return header[1].trim();
+                            }
+                        }
+
+                        return null;
+                    };
+
+                    resolve(response);
+                } else {
+                    reject(response);
+                }
             };
 
-            if (typeof success === 'function') {
-                success(response);
-            }
-        };
+            options.onerror = function (response) {
+                reject(response);
+            };
 
-        return GM_xmlhttpRequest(options);
+            GM_xmlhttpRequest(options);
+        });
     }
 
     /**
