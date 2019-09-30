@@ -2,8 +2,8 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     6.1.1
-// @date        2019-09-29
+// @version     6.1.2
+// @date        2019-09-30
 // @author      KJ86
 // @icon        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjODI4YTk5IiBkPSJtIDEwLDYgaCA0IHYgNiBoIDMgbCAtNSw2IC01LC02IGggMyB6IiBwYWludC1vcmRlcj0ibWFya2VycyBzdHJva2UgZmlsbCIvPjwvc3ZnPg==
 // @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
@@ -27,6 +27,9 @@
      * @type {Window}
      */
     var win = unsafeWindow || window;
+
+    // Check supported browsers
+    if (typeof win.Promise === 'undefined') return;
 
     /**
      * @function
@@ -117,30 +120,32 @@
          * @param {Array|String} mask
          * @returns {Promise}
          */
-        audioUnmaskSource: function (mask) {
-            if (typeof VKDM.audioUnmaskSource._getModule === 'undefined') {
-                VKDM.audioUnmaskSource._getModule = request({
-                    url: 'https://m.vk.com',
-                    _isAjax: false,
-                    _isMobile: true
-                }).then(function (response) {
-                    var match = response.responseText.match(/src="(.+?common\..+?js.*?)"/);
+        audioUnmaskSource: function fn(mask) {
+            if (typeof fn.module === 'undefined') {
+                var ORIGIN = 'https://m.vk.com';
+
+                fn.module = request({
+                    url: ORIGIN,
+                    _isAjax: false
+                }).then(function (xhr) {
+                    var match = xhr.response.match(/src="(.+?common\..+?js.*?)"/);
                     var commonJsSrc = match && match[1];
 
                     if (commonJsSrc) {
                         return request({
-                            url: 'https://m.vk.com' + commonJsSrc,
-                            _isAjax: false,
-                            _isMobile: true
-                        }).then(function (response) {
+                            url: ORIGIN + commonJsSrc,
+                            _isAjax: false
+                        }).then(function (xhr) {
                             var modules = {};
-                            var inject = 'var a0 = arguments[0]; for (var p in a0) {if (a0[p].toString().indexOf(".audioUnmaskSource=") !== -1) {a0[p](null, modules);break;}} return;';
 
-                            eval(response.responseText.replace(/^!function.*?\{/, '$& ' + inject));
+                            // Inject and exec
+                            eval(xhr.response.replace(/^!function.*?\{/, '$& var a0 = arguments[0]; for (var p in a0) {if (a0[p].toString().indexOf(".audioUnmaskSource=") !== -1) {a0[p](null, modules);break;}} return;'));
 
                             if ('audioUnmaskSource' in modules) {
-                                return Promise.resolve(modules);
+                                return modules;
                             }
+
+                            return Promise.reject();
                         });
                     }
 
@@ -148,7 +153,7 @@
                 });
             }
 
-            return VKDM.audioUnmaskSource._getModule.then(function (modules) {
+            return fn.module.then(function (modules) {
                 if (Array.isArray(mask)) {
                     return mask.map(function (item) {
                         return modules.audioUnmaskSource(item);
@@ -173,24 +178,24 @@
                     'ids': ids
                 },
                 _isMobile: true
-            }).then(function (response) {
+            }).then(function (xhr) {
                 var items;
 
                 try {
-                    var json = JSON.parse(response.response);
+                    var json = JSON.parse(xhr.response);
 
                     items = json.payload[1][0];
                 } catch (e) {
                     // Deprecated
                     try {
-                        if (response.response.indexOf('<!>') !== -1) {
-                            items = JSON.parse(response.responseText.split('<!>')[5].replace('<!json>', ''));
+                        if (xhr.response.indexOf('<!>') !== -1) {
+                            items = JSON.parse(xhr.response.split('<!>')[5].replace('<!json>', ''));
                         }
                     } catch (e) {}
                 }
 
                 if (Array.isArray(items)) {
-                    return Promise.resolve(items);
+                    return items;
                 }
 
                 return Promise.reject();
@@ -225,8 +230,8 @@
                         request({
                             url: url,
                             method: 'HEAD'
-                        }).then(function (response) {
-                            var contentLength = response.getResponseHeader('content-length');
+                        }).then(function (xhr) {
+                            var contentLength = xhr.getResponseHeader('content-length');
 
                             data(audioRow, 'vkdm_audio_row_duration', parseInt(items[0][5]));
                             data(audioRow, 'vkdm_audio_row_file_size', parseInt(contentLength));
@@ -486,24 +491,28 @@
     );
 
     // Adding audio download button
-    DOMNodeInserted('.audio_row:not(.audio_claimed) .audio_row__actions', function handler(node) {
-        if (handler.firstUse !== true) {
-            handler.firstUse = true;
+    DOMNodeInserted('.audio_row:not(.audio_claimed) .audio_row__actions', function fn(node) {
+        if (fn.firstUse !== true) {
+            fn.firstUse = true;
 
             // Preload module
-            VKDM.audioUnmaskSource('');
+            VKDM.audioUnmaskSource('').then(function () {
+                fn.canUse = true;
+            });
         }
 
-        var btn = se('<button aria-label="Скачать аудиозапись" data-action="download" class="audio_row__action audio_row__action_download"></button>');
+        if (fn.canUse) {
+            var btn = se('<button aria-label="Скачать аудиозапись" data-action="download" class="audio_row__action audio_row__action_download"></button>');
 
-        addEvent(btn, 'click', function (e) {
-            VKDM.downloadAudio(this);
-            cancelEvent(e);
-        });
-        addEvent(btn, 'mouseover', function () {
-            VKDM.audioShowActionTooltip(this);
-        });
-        domInsertBefore(btn, node.firstElementChild);
+            addEvent(btn, 'click', function (e) {
+                VKDM.downloadAudio(this);
+                cancelEvent(e);
+            });
+            addEvent(btn, 'mouseover', function () {
+                VKDM.audioShowActionTooltip(this);
+            });
+            domInsertBefore(btn, node.firstElementChild);
+        }
     });
 
     // Adding video download button
@@ -653,11 +662,11 @@
                 }
             }
 
-            options.onload = function (response) {
-                if (response.status === 200) {
-                    response.getResponseHeader = function (name) {
+            options.onload = function (xhr) {
+                if (xhr.status === 200) {
+                    xhr.getResponseHeader = function (name) {
                         var header;
-                        var headers = response.responseHeaders.split('\n');
+                        var headers = xhr.responseHeaders.split('\n');
 
                         for (var i = 0; i < headers.length; i++) {
                             header = headers[i].split(':');
@@ -670,14 +679,14 @@
                         return null;
                     };
 
-                    resolve(response);
+                    resolve(xhr);
                 } else {
-                    reject(response);
+                    reject(xhr);
                 }
             };
 
-            options.onerror = function (response) {
-                reject(response);
+            options.onerror = function (xhr) {
+                reject(xhr);
             };
 
             GM_xmlhttpRequest(options);
