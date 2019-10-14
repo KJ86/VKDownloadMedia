@@ -2,8 +2,8 @@
 // @name        VKDownloadMedia
 // @description Скачать фото/аудио/видео-файлы с соц. сети ВКонтакте.
 // @namespace   https://github.com/KJ86/VKDownloadMedia
-// @version     6.1.2
-// @date        2019-09-30
+// @version     6.1.3
+// @date        2019-10-14
 // @author      KJ86
 // @icon        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjODI4YTk5IiBkPSJtIDEwLDYgaCA0IHYgNiBoIDMgbCAtNSw2IC01LC02IGggMyB6IiBwYWludC1vcmRlcj0ibWFya2VycyBzdHJva2UgZmlsbCIvPjwvc3ZnPg==
 // @homepage    https://greasyfork.org/ru/scripts/7385-vkdownloadmedia
@@ -23,6 +23,36 @@
 (function () {
     'use strict';
 
+    /** @var {Object} unsafeWindow */
+    /** @var {Function} GM_addStyle */
+    /** @var {Function} GM_download */
+    /** @var {Function} GM_xmlhttpRequest */
+    /** @var {Function} Promise */
+    /** @var {Function} geByClass */
+    /** @var {Function} geByClass1 */
+    /** @var {Function} ge */
+    /** @var {Function} se */
+    /** @var {Function} re */
+    /** @var {Function} ce */
+    /** @var {Function} addEvent */
+    /** @var {Function} cancelEvent */
+    /** @var {Function} domInsertAfter */
+    /** @var {Object} Videoview */
+    /** @var {Object} tooltips */
+    /** @var {Object} mvcur */
+    /** @var {Object} ap */
+    /** @var {Function} domInsertBefore */
+    /** @var {Function} matchesSelector */
+    /** @var {Function} showTooltip */
+    /** @var {Function} uiActionsMenu */
+    /** @var {Function} domClosest */
+    /** @var {Function} getProgressHtml */
+    /** @var {Function} setStyle */
+    /** @var {Function} showFastBox */
+    /** @var {Function} domQuery */
+    /** @var {Function} data */
+    /** @var {Function} each */
+
     /**
      * @type {Window}
      */
@@ -33,9 +63,6 @@
 
     /**
      * @function
-     * @param {String} selector
-     * @param {Function} callback
-     * @param {Boolean} isOnce
      */
     var DOMNodeInserted = (function () {
         var _callbacks = [];
@@ -117,7 +144,7 @@
      */
     var VKDM = {
         /**
-         * @param {Array|String} mask
+         * @param {Array|String} [mask]
          * @returns {Promise}
          */
         audioUnmaskSource: function fn(mask) {
@@ -154,13 +181,15 @@
             }
 
             return fn.module.then(function (modules) {
-                if (Array.isArray(mask)) {
-                    return mask.map(function (item) {
-                        return modules.audioUnmaskSource(item);
-                    });
-                }
+                if (mask) {
+                    if (Array.isArray(mask)) {
+                        return mask.map(function (item) {
+                            return modules.audioUnmaskSource(item);
+                        });
+                    }
 
-                return modules.audioUnmaskSource(mask);
+                    return modules.audioUnmaskSource(mask);
+                }
             });
         },
 
@@ -204,7 +233,7 @@
 
         audioShowActionTooltip: function (btn) {
             var audioRow = domClosest('audio_row', btn);
-            var getTTtext = function () {
+            var getTText = function () {
                 var duration = data(audioRow, 'vkdm_audio_row_duration');
                 var fileSize = data(audioRow, 'vkdm_audio_row_file_size');
                 var fileSizeMByte = '...';
@@ -238,7 +267,7 @@
 
                             if (document.body.contains(btn)) {
                                 btn.classList.remove('vkdm_ajax_in_progress');
-                                geByClass1('tt_text', btn.tt.container).innerHTML = getTTtext();
+                                geByClass1('tt_text', btn.tt.container).innerHTML = getTText();
                                 tooltips.rePositionTT(btn.tt);
                             }
                         });
@@ -247,7 +276,7 @@
             }
 
             showTooltip(btn, {
-                text: getTTtext,
+                text: getTText,
                 black: 1,
                 shift: [7, 5, 0],
                 needLeft: true
@@ -490,18 +519,13 @@
         '.audio_layer_container .audio_page__footer_download_playlist:hover {text-decoration: underline;}'
     );
 
+    // Preload module
+    VKDM.audioUnmaskSource('').then(null);
+
     // Adding audio download button
-    DOMNodeInserted('.audio_row:not(.audio_claimed) .audio_row__actions', function fn(node) {
-        if (fn.firstUse !== true) {
-            fn.firstUse = true;
-
-            // Preload module
-            VKDM.audioUnmaskSource('').then(function () {
-                fn.canUse = true;
-            });
-        }
-
-        if (fn.canUse) {
+    DOMNodeInserted('.audio_row:not(.audio_claimed) .audio_row__actions', function (node) {
+        // When module ready
+        VKDM.audioUnmaskSource('').then(function () {
             var btn = se('<button aria-label="Скачать аудиозапись" data-action="download" class="audio_row__action audio_row__action_download"></button>');
 
             addEvent(btn, 'click', function (e) {
@@ -512,7 +536,7 @@
                 VKDM.audioShowActionTooltip(this);
             });
             domInsertBefore(btn, node.firstElementChild);
-        }
+        });
     });
 
     // Adding video download button
@@ -630,8 +654,6 @@
     // region Helpers
     /**
      * @param {Object} options
-     * @param {Boolean} [options._isAjax=true]
-     * @param {Boolean} [options._isMobile=false]
      * @returns {Promise}
      */
     function request(options) {
